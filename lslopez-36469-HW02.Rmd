@@ -44,100 +44,63 @@ output:
     (D_A / H_A) /  (D_a / H_a)
 ```
 *Interpretation*
-Observe that $OR \approx 1$, which suggests that the risk factor actn3_rs540874 (in isolation) is not significantly associated with the heart disease. 
+Observe that $OR \approx 1$, which suggests that the risk factor `actn3_rs540874` (in isolation) is not significantly associated with the heart disease. 
 
 **B**.  
-*Use logistic regression with the glm function to regress only
-heart disease onto all 79 SNP’s (i.e., not including the variable norm_BMI)*
-```{r}
-    glm_famuss <- famuss[, -which(colnames(famuss) == "norm_BMI")] 
-    glm_res <- stats::glm(heart_disease ~ . , data = glm_famuss, family = stats::binomial)
-```
-
-_How many SNPs are present in the dataset?_  
-```{r}
-    length(setdiff(colnames(famuss),  c("id", "Gender", "Age", "Race")))
-```
-_Using the which function, determine which column in famuss contains information about the the `actn3 1671064` SNP._ 
-```{r}
-    which(colnames(famuss) == "actn3_1671064")
-```
-_Using the table function, determine its minor genotype and its frequency_
+*Use logistic regression with the glm function to regress only heart disease onto all 79 SNP’s (i.e., not including the variable `norm_BMI`). Plot these approximate OR’s*
 
 ```{r}
-    table(famuss["actn3_1671064"])[1]
-```
-_Furthermore, using the table function, report these frequencies stratified by the variable Race._  
-```{r}
-    library(tidyverse)
-    famuss %>% select("actn3_1671064", "Race") %>% table
-```
-
-**C**.  
-```{r}
-    allele_table  <- table(famuss["esr1_rs2077647"])
-    names(allele_table) <- c(1, 0, 2)
-    allele_df <- data.frame(allele_table)
-    ggplot(allele_df, aes(x = Var1, y = Freq)) + 
-        geom_bar(stat = "identity")  + 
-        labs(title = "Genotype Counts of SNP esr1_rs2077647") +
-        xlab( "Numeric coding for SNP esr1_rs2077647") +
-        ylab("Count")
-```  
-
-## Q2
-**A**.  
-```{r}
-    source("https://raw.githubusercontent.com/xuranw/469_public/master/hw1/clt.R")
-```
-`generate_data` samples $n$ elements from the set ${1,2,3}$ (with replacement). The number of $1$'s in the sample 
-determines the number of Gaussian ($\mu = 10, \sigma = 1$), random variables which will be in `sample_vec`.
-Similarly, the number of $2$'s in the sample determines the number of Gamma ($\kappa = 2, \theta = 2$) 
-random variables which will be in `sample_vec`. Same story with Chi Squared. Our result is a vector of vector of size 
-$n$ with three random variables interleaved. 
-
-
-**B**.  
-
-```{r}
-    M <- matrix(rep(NA, 6 * 10000), nrow = 10000)
-    n_args <- c(1,2,3,5,10,100)
-    i <- 1
-    sample_vec <- c(NA, 10000)
-    for (val in n_args) {
-        M[, i] <- replicate(10000, mean(generate_data(val)))
-        i <- i + 1
+    glm_famuss <- famuss[, -which(colnames(famuss) == "norm_BMI")]
+    logistic_regression  <- function(dataset, BMI) {
+        glm_res <- stats::glm(dataset$heart_disease ~ . , data = dataset, family = stats::binomial)
+        pred_vec1 <-  stats::predict(glm_res, newx = dataset, type = "response")
+        pred_vec1 <- as.numeric(pred_vec1 >= 0.5) # converting it to a 0-1
+        misclassification_rate  <- 1 - sum(dataset$heart_disease == pred_vec1) / length (dataset$heart_disease)
+        b_js <- stats::coef(glm_res)
+        alphabetical_bjs <- b_js[order(names(b_js))]
+        ors <- data.frame(c(as.vector(unlist(lapply(alphabetical_bjs, exp)))),
+                          1:length(b_js))
+        names(ors) <- c("ORs", "x")
+        title_string <- paste("Regression (without BMI)\nMisclassification: ",
+                             misclassification_rate)
+        ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) +
+        geom_point() +
+        geom_hline(yintercept = .8, linetype = "dotted", col = "red") +
+        geom_hline(yintercept = 1, col = "red") +
+        geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") + 
+        labs(x = "SNP order (alphabetical)",
+             y = "Estimated OR",
+             title = ifelse(BMI == T, "Regression (with BMI)", "Regression (without BMI)"), 
+             subtitle = paste("Misclassification: ", misclassification_rate))
+        rm(glm_res, pred_vec1, misclassification_rate, b_js, alphabetical_bjs, ors, title_string, dataset)
     }
+    logistic_regression(glm_famuss, F)
 ```
+# Functions seems to work in code chunk
 ```{r}
-    par(mfrow = c(2,3))
-    n_1_df <-  data.frame(M[,1])
-    hist(n_1_df$M...1., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 1",
-         xlab = "Value", ylab =  "Frequency")
-    n_2_df <-  data.frame(M[,2])
-    hist(n_2_df$M...2., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 2",
-         xlab = "Value", ylab =  "Frequency")
-    n_3_df <-  data.frame(M[,3])
-    hist(n_3_df$M...3., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 3",
-         xlab = "Value", ylab =  "Frequency")
-    n_5_df <-  data.frame(M[,4])
-    hist(n_5_df$M...4., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 5",
-         xlab = "Value", ylab =  "Frequency")
-    n_10_df <-  data.frame(M[,5])
-    hist(n_10_df$M...5., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 10",
-         xlab = "Value", ylab =  "Frequency")
-    n_100_df <-  data.frame(M[,6])
-    hist(n_100_df$M...6., breaks = 100, border= "red",
-         col= "green", main = "Sample size: 100",
-         xlab = "Value", ylab =  "Frequency")
+        glm_res <- stats::glm(glm_famuss$heart_disease ~ . , data = glm_famuss, family = stats::binomial)
+        pred_vec1 <-  stats::predict(glm_res, newx = glm_famuss, type = "response")
+        pred_vec1 <- as.numeric(pred_vec1 >= 0.5) # converting it to a 0-1
+        misclassification_rate  <- 1 - sum(glm_famuss$heart_disease == pred_vec1) / length (glm_famuss$heart_disease)
+        b_js <- stats::coef(glm_res)
+        alphabetical_bjs <- b_js[order(names(b_js))]
+        ors <- data.frame(c(as.vector(unlist(lapply(alphabetical_bjs, exp)))),
+                          1:length(b_js))
+        names(ors) <- c("ORs", "x")
+        title_string <- paste("Regression (without BMI)\nMisclassification: ",
+                             misclassification_rate)
+        ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) +
+        geom_point() +
+        geom_hline(yintercept = .8, linetype = "dotted", col = "red") +
+        geom_hline(yintercept = 1, col = "red") +
+        geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") + 
+        labs(x = "SNP order (alphabetical)",
+             y = "Estimated OR",
+             title = "Regression (without BMI)")
 ```
+**C**.  
+*We now include `norm_BMI`*
 
-We note that for $n \leq 3$ (and $n = 5$ to a certain extent) the distribution of means of `sample_vec` 
-is multimodal since our sample is too small to converge to anything. For $n \ge 10$ we see our histogram approximate 
-the famous Bell curve since our statistic (The mean in this case) is additive with respect to the Random Variables in 
-question, which verifies CLT (Lyapunov version specifically since our Random Variables are not Identically distributed).
+```{r}
+    logistic_regression(famuss, T)
+```
