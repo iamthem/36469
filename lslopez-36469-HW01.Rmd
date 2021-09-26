@@ -1,0 +1,146 @@
+---
+title: "36-469 Homework 01, Fall 2021"
+author: "Leandro Lopez Leon (lslopez)"
+date: "Sunday, Sept. 12, 2021" 
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+---
+
+```{r wrap-hook,echo=FALSE}
+    library(knitr)
+    hook_output = knit_hooks$get('output')
+    knitr::opts_chunk$set(echo = F, warning = F, message = F)
+    knit_hooks$set(output = function(x, options) {
+      # this hook is used only when the linewidth option is not NULL
+      if (!is.null(n <- options$linewidth)) {
+        x = knitr:::split_lines(x)
+        # any lines wider than n should be wrapped
+        if (any(nchar(x) > n)) x = strwrap(x, width = n)
+        x = paste(x, collapse = '\n')
+      }
+      hook_output(x, options)
+    })
+```
+
+## Q0  
+**A**.  
+Leandro (said as it is sounds) 
+**B**.  
+_I have read and understood the entire syllabus_  
+**C**.  
+36-226, 36-401, 36-402, 36-311  
+**D**.  
+15-112, 15-122, 15-150, 36-350, 36-315  
+**E**.  
+None  
+**F**.  
+Techniques for analysis in cases where $p >> n$  
+
+## Q1
+**A**.  
+    1. _SNP_: A difference or change of a single nucleotide (usually rare)  
+    2. _Allele_: Possible variation in a given gene. Can be dominant or secondary   
+    3. _Gene_: Sequence of nucleotides which encodes some feature manifested in organism  
+    4. _GWAS_: Inference done on the entire genome in search for some specific condition  
+    5. _Genotype_: Manifested alleles in individual's genome   
+    6. _Phenotype_: Physical representation of genome in an individual 
+    7. _Recombination_: Individuals get pieces of each chromosome from their parents, not whole chromosomes. 
+    8. _Mutation_: Stochastic changes in genome that occur at each generation.  
+    9. _Linkage Disequilibrium_: Spatial correlation across SNP's. This aids to reduce cost of measurement  
+
+**B**.  
+```{r}
+    famuss <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/data/famuss.csv")
+```
+_How many SNPs are present in the dataset?_  
+```{r}
+    length(setdiff(colnames(famuss),  c("id", "Gender", "Age", "Race")))
+```
+_Using the which function, determine which column in famuss contains information about the the `actn3 1671064` SNP._ 
+```{r}
+    which(colnames(famuss) == "actn3_1671064")
+```
+_Using the table function, determine its minor genotype and its frequency_
+
+```{r}
+    table(famuss["actn3_1671064"])[1]
+```
+_Furthermore, using the table function, report these frequencies stratified by the variable Race._  
+```{r}
+    library(tidyverse)
+    famuss %>% select("actn3_1671064", "Race") %>% table
+```
+
+**C**.  
+```{r}
+    allele_table  <- table(famuss["esr1_rs2077647"])
+    names(allele_table) <- c(1, 0, 2)
+    allele_df <- data.frame(allele_table)
+    ggplot(allele_df, aes(x = Var1, y = Freq)) + 
+        geom_bar(stat = "identity")  + 
+        labs(title = "Genotype Counts of SNP esr1_rs2077647") +
+        xlab( "Numeric coding for SNP esr1_rs2077647") +
+        ylab("Count")
+```  
+
+## Q2
+**A**.  
+```{r}
+    source("https://raw.githubusercontent.com/xuranw/469_public/master/hw1/clt.R")
+```
+`generate_data` samples $n$ elements from the set ${1,2,3}$ (with replacement). The number of $1$'s in the sample 
+determines the number of Gaussian ($\mu = 10, \sigma = 1$), random variables which will be in `sample_vec`.
+Similarly, the number of $2$'s in the sample determines the number of Gamma ($\kappa = 2, \theta = 2$) 
+random variables which will be in `sample_vec`. Same story with Chi Squared. Our result is a vector of vector of size 
+$n$ with three random variables interleaved. 
+
+
+**B**.  
+
+```{r}
+    M <- matrix(rep(NA, 6 * 10000), nrow = 10000)
+    n_args <- c(1,2,3,5,10,100)
+    i <- 1
+    sample_vec <- c(NA, 10000)
+    for (val in n_args) {
+        M[, i] <- replicate(10000, mean(generate_data(val)))
+        i <- i + 1
+    }
+```
+```{r}
+    par(mfrow = c(2,3))
+    n_1_df <-  data.frame(M[,1])
+    hist(n_1_df$M...1., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 1",
+         xlab = "Value", ylab =  "Frequency")
+    n_2_df <-  data.frame(M[,2])
+    hist(n_2_df$M...2., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 2",
+         xlab = "Value", ylab =  "Frequency")
+    n_3_df <-  data.frame(M[,3])
+    hist(n_3_df$M...3., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 3",
+         xlab = "Value", ylab =  "Frequency")
+    n_5_df <-  data.frame(M[,4])
+    hist(n_5_df$M...4., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 5",
+         xlab = "Value", ylab =  "Frequency")
+    n_10_df <-  data.frame(M[,5])
+    hist(n_10_df$M...5., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 10",
+         xlab = "Value", ylab =  "Frequency")
+    n_100_df <-  data.frame(M[,6])
+    hist(n_100_df$M...6., breaks = 100, border= "red",
+         col= "green", main = "Sample size: 100",
+         xlab = "Value", ylab =  "Frequency")
+```
+
+We note that for $n \leq 3$ (and $n = 5$ to a certain extent) the distribution of means of `sample_vec` 
+is multimodal since our sample is too small to converge to anything. For $n \ge 10$ we see our histogram approximate 
+the famous Bell curve since our statistic (The mean in this case) is additive with respect to the Random Variables in 
+question, which verifies CLT (Lyapunov version specifically since our Random Variables are not Identically distributed).
