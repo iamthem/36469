@@ -1,7 +1,7 @@
 ---
-title: "36-469 Homework 01, Fall 2021"
+title: "36-469 Homework 02, Fall 2021"
 author: "Leandro Lopez Leon (lslopez)"
-date: "Sunday, Sept. 12, 2021" 
+date: "Sunday, Sept. 26, 2021" 
 output:
   pdf_document:
     toc: no
@@ -13,6 +13,7 @@ output:
 
 ```{r wrap-hook,echo=FALSE}
     library(knitr)
+    library(tidyverse)
     hook_output = knit_hooks$get('output')
     knitr::opts_chunk$set(echo = F, warning = F, message = F)
     knit_hooks$set(output = function(x, options) {
@@ -27,36 +28,32 @@ output:
     })
 ```
 
-## Q0  
-**A**.  
-Leandro (said as it is sounds) 
-**B**.  
-_I have read and understood the entire syllabus_  
-**C**.  
-36-226, 36-401, 36-402, 36-311  
-**D**.  
-15-112, 15-122, 15-150, 36-350, 36-315  
-**E**.  
-None  
-**F**.  
-Techniques for analysis in cases where $p >> n$  
-
 ## Q1
 **A**.  
-    1. _SNP_: A difference or change of a single nucleotide (usually rare)  
-    2. _Allele_: Possible variation in a given gene. Can be dominant or secondary   
-    3. _Gene_: Sequence of nucleotides which encodes some feature manifested in organism  
-    4. _GWAS_: Inference done on the entire genome in search for some specific condition  
-    5. _Genotype_: Manifested alleles in individual's genome   
-    6. _Phenotype_: Physical representation of genome in an individual 
-    7. _Recombination_: Individuals get pieces of each chromosome from their parents, not whole chromosomes. 
-    8. _Mutation_: Stochastic changes in genome that occur at each generation.  
-    9. _Linkage Disequilibrium_: Spatial correlation across SNP's. This aids to reduce cost of measurement  
+
+*Compute the OR for actn3_rs540874*
+```{r}
+    source("https://raw.githubusercontent.com/xuranw/469_public/master/hw2/hw2_functions.R")
+    famuss <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/hw2/synthetic_famuss.csv")
+    or_df <- famuss %>% subset(., actn3_rs540874 != 2) %>%
+             select(actn3_rs540874, heart_disease)
+    D_A <- table(or_df)[2,2]
+    H_A <- table(or_df)[2,1]
+    D_a <- table(or_df)[1,2]
+    H_a <- table(or_df)[1,1]
+    (D_A / H_A) /  (D_a / H_a)
+```
+*Interpretation*
+Observe that $OR \approx 1$, which suggests that the risk factor actn3_rs540874 (in isolation) is not significantly associated with the heart disease. 
 
 **B**.  
+*Use logistic regression with the glm function to regress only
+heart disease onto all 79 SNP’s (i.e., not including the variable norm_BMI)*
 ```{r}
-    famuss <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/data/famuss.csv")
+    glm_famuss <- famuss[, -which(colnames(famuss) == "norm_BMI")] 
+    glm_res <- stats::glm(heart_disease ~ . , data = glm_famuss, family = stats::binomial)
 ```
+
 _How many SNPs are present in the dataset?_  
 ```{r}
     length(setdiff(colnames(famuss),  c("id", "Gender", "Age", "Race")))
