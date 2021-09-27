@@ -81,6 +81,46 @@ Observe that $OR \approx 1$, which suggests that the risk factor `actn3_rs540874
 ```
 *Similarities*: Both fits place the odd ratios for most SNP's inside the dotted lines at $[0.8, 1.2]$. There also seems
 to be some overlap in the SNPs with high magnitude in both graphs. 
+
 *Differences*: Most remarkably, the misclassification rate went down considerably with the addition of `norm_BMI`. There are also a few
 SNP's with large OR's which where unremarkable in the first graph. 
 
+**D**.  
+
+```{r}
+    library(glmnet)
+    set.seed(10)
+    Y <-  famuss[,which(colnames(famuss) == "heart_disease")]
+    X <-  famuss[,which(colnames(famuss) != "heart_disease")]
+    cvglmnet_res <- cv.glmnet(x = as.matrix(X), y = as.matrix(Y),
+                             family = "binomial", intercept = T, alpha = 1)
+    coef_vec1 <- stats::coef(cvglmnet_res, s = "lambda.1se")
+    name_vec <- rownames(coef_vec1)
+    coef_vec1 <- as.numeric(coef_vec1)
+    names(coef_vec1) <- name_vec
+    coef_vec1 <- coef_vec1[order(names(coef_vec1))]
+    coef_vec1_reduced <- coef_vec1[which(names(coef_vec1) != "(Intercept)" & names(coef_vec1) != "norm_BMI")]
+    pred_vec <- output_predictions(cvglmnet_res, famuss, which(colnames(famuss) == "heart_disease"))
+    ors <- data.frame(as.vector(unlist(lapply(coef_vec1_reduced, exp))), 1:length(coef_vec1_reduced))
+    names(ors) <- c("ORs", "x")
+    misclassification_rate  <- 1 - sum(famuss$heart_disease == pred_vec) / length(famuss$heart_disease)
+    ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) +
+            geom_point() +
+            geom_hline(yintercept = .8, linetype = "dotted", col = "red") +
+            geom_hline(yintercept = 1, col = "red") +
+            geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") + 
+            labs(x = "SNP order (alphabetical)",
+                 y = "Estimated OR",
+                 title = "Penalized Logistic Regression (with BMI)", 
+                 subtitle = paste("Misclassification: ", misclassification_rate))
+    coef_vec1["norm_BMI"]
+    sort(exp(coef_vec1_reduced))
+```
+*Similarities*: None  
+
+*Differences*: Although the misclassification rate went up slightly in the Figure 3, it did so with tremendous parsimony in the model (only 3 
+ORs not equal to 1). The magnitude of the OR was also pushed towards 1 aggresively in Figure 3 due to the high $\alpha$ value.  
+Interestingly, the non-unity SNP's in Figure 3 seem to be different the largest most significant ones in Figure 2 (not exactly sure about this).
+
+## Q2
+**A**.  
