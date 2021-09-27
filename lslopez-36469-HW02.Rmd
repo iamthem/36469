@@ -1,7 +1,7 @@
 ---
 title: "36-469 Homework 02, Fall 2021"
 author: "Leandro Lopez Leon (lslopez)"
-date: "Sunday, Sept. 26, 2021" 
+date: "Monday, Sept. 27, 2021" 
 output:
   pdf_document:
     toc: no
@@ -50,57 +50,37 @@ Observe that $OR \approx 1$, which suggests that the risk factor `actn3_rs540874
 *Use logistic regression with the glm function to regress only heart disease onto all 79 SNP’s (i.e., not including the variable `norm_BMI`). Plot these approximate OR’s*
 
 ```{r}
-    glm_famuss <- famuss[, -which(colnames(famuss) == "norm_BMI")]
     logistic_regression  <- function(dataset, BMI) {
-        glm_res <- stats::glm(dataset$heart_disease ~ . , data = dataset, family = stats::binomial)
+        dataset <- dataset[order(names(dataset))]
+        glm_res <- stats::glm(heart_disease ~ ., data = dataset, family = stats::binomial)
         pred_vec1 <-  stats::predict(glm_res, newx = dataset, type = "response")
         pred_vec1 <- as.numeric(pred_vec1 >= 0.5) # converting it to a 0-1
         misclassification_rate  <- 1 - sum(dataset$heart_disease == pred_vec1) / length (dataset$heart_disease)
-        b_js <- stats::coef(glm_res)
-        alphabetical_bjs <- b_js[order(names(b_js))]
-        ors <- data.frame(c(as.vector(unlist(lapply(alphabetical_bjs, exp)))),
-                          1:length(b_js))
+        b_js <- output_coefficients(glm_res, dataset, which(colnames(glm_famuss) == "heart_disease"))
+        b_js_reduced <- b_js[which(names(b_js) != "norm_BMI" & names(b_js) != "(Intercept)")]
+        ors <- data.frame(as.vector(unlist(lapply(b_js_reduced, exp))), 1:length(b_js_reduced))
         names(ors) <- c("ORs", "x")
-        title_string <- paste("Regression (without BMI)\nMisclassification: ",
-                             misclassification_rate)
-        ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) +
-        geom_point() +
+        p <- ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) + geom_point() +
         geom_hline(yintercept = .8, linetype = "dotted", col = "red") +
         geom_hline(yintercept = 1, col = "red") +
-        geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") + 
+        geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") +
         labs(x = "SNP order (alphabetical)",
              y = "Estimated OR",
-             title = ifelse(BMI == T, "Regression (with BMI)", "Regression (without BMI)"), 
+             title = ifelse(BMI == T, "Regression (with BMI)", "Regression (without BMI)"),
              subtitle = paste("Misclassification: ", misclassification_rate))
-        rm(glm_res, pred_vec1, misclassification_rate, b_js, alphabetical_bjs, ors, title_string, dataset)
+        result  <- list(bmi = ifelse(BMI == T, b_js["norm_BMI"], NA), p.plot = p)
+        return(result)
     }
-    logistic_regression(glm_famuss, F)
-```
-# Functions seems to work in code chunk
-```{r}
-        glm_res <- stats::glm(glm_famuss$heart_disease ~ . , data = glm_famuss, family = stats::binomial)
-        pred_vec1 <-  stats::predict(glm_res, newx = glm_famuss, type = "response")
-        pred_vec1 <- as.numeric(pred_vec1 >= 0.5) # converting it to a 0-1
-        misclassification_rate  <- 1 - sum(glm_famuss$heart_disease == pred_vec1) / length (glm_famuss$heart_disease)
-        b_js <- stats::coef(glm_res)
-        alphabetical_bjs <- b_js[order(names(b_js))]
-        ors <- data.frame(c(as.vector(unlist(lapply(alphabetical_bjs, exp)))),
-                          1:length(b_js))
-        names(ors) <- c("ORs", "x")
-        title_string <- paste("Regression (without BMI)\nMisclassification: ",
-                             misclassification_rate)
-        ggplot(data = ors, ggplot2::aes(x = x, y = ORs)) +
-        geom_point() +
-        geom_hline(yintercept = .8, linetype = "dotted", col = "red") +
-        geom_hline(yintercept = 1, col = "red") +
-        geom_hline(yintercept = 1.2,linetype = "dotted", col = "red") + 
-        labs(x = "SNP order (alphabetical)",
-             y = "Estimated OR",
-             title = "Regression (without BMI)")
+    glm_famuss <- famuss[, -which(colnames(famuss) == "norm_BMI")]
+    logistic_regression(glm_famuss, F)[2]
 ```
 **C**.  
-*We now include `norm_BMI`*
-
+*We now include `norm_BMI`. The magnitude of coefficient associated with `norm_BMI`* is
 ```{r}
     logistic_regression(famuss, T)
 ```
+*Similarities*: Both fits place the odd ratios for most SNP's inside the dotted lines at $[0.8, 1.2]$. There also seems
+to be some overlap in the SNPs with high magnitude in both graphs. 
+*Differences*: Most remarkably, the misclassification rate went down considerably with the addition of `norm_BMI`. There are also a few
+SNP's with large OR's which where unremarkable in the first graph. 
+
