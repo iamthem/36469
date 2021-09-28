@@ -148,8 +148,14 @@ $xB + \epsilon, \epsilon \sim \mathcal{N}(0,1)$.
         print(p)
     }
 ```
-We note that since $k=3$, there are 3 submatrices whose correlation gets higher as `cor_within` increases
+We note that since $k=3$, there are 3 submatrices whose correlation increases as `cor_within` increases. since the off diagonal terms inside 
+these submatrices are all equal to `cor_within`.
 
 **C**.  
+```{r}
+    simulate_lasso <- function(n, cor_within) { 
+
+    }
+```
 
 
