@@ -77,9 +77,6 @@ namely that most SNP's are unrelated to `heart_disease`, which is expressed math
 p-values (see QQ-plot on the right). This discrepancy puts into question this naive approach. We must somehow account for the confounders in our
 data.
 
-
-
-
 **B**.  
 
 ```{r}
@@ -89,9 +86,6 @@ data.
     ggplot(evs_df, aes(x = X2, y = X1)) + geom_point() + labs(title = "Scree plot") +
         xlab("Components") + ylab("% of variance accounted for")
 ```
-
-
-
 
 **C**.  
 
@@ -105,8 +99,6 @@ data.
              color = "Has CHD?", 
              title = "PCA results")
 ```
-
-
 **D**.  
 
 ```{r}
@@ -122,3 +114,58 @@ data.
 We note that the empirical distribution of the p-values looks significantly more balanced than what we saw in Q1 and that 
 it tracks the expected distribution (uniform over the $[0,1]$ interval) much more closely as evidence in the QQ plot. Including ancestry in our model (via $PC1$ and $PC2$) 
 has weakened the statistical significance between each individual SNP and our response (CHD). In effect, we have taken into account this confounder in our analysis. 
+
+## Q2
+```{r}
+    source("https://raw.githubusercontent.com/xuranw/469_public/master/hw3/hw3_functions.R")
+    set.seed(10); dat <- generate_data()
+    first_pc <- stats::prcomp(dat)$x[,1]
+```
+
+**A**.  
+```{r}
+    S <- cor(dat)
+    eigen_res <- eigen(S)
+    first_pc_eigen <- -1 * dat %*% eigen_res$vectors[,1]
+    svd_res <- svd(dat)
+    first_pc_svd <- (dat %*% svd_res$v[,1])
+```
+
+Below we show that the principal components computed above are equal 
+
+```{r, echo = T}
+    all.equal(as.vector(first_pc_eigen), first_pc, as.vector(first_pc_svd))
+```
+
+And we report the value of $\lambda^{(1)}$
+
+```{r}
+    eigen_res$values[1]
+```
+
+**B**.  
+
+```{r}
+    compute_variance <- function(X, w) {
+        var(apply(X, 1, function(xi) xi %*% w))
+    }
+
+    compute_reconstruction <- function(X, w) {
+        wwX <- as.data.frame(t(X %*% (w %*% t(w))))
+        X <- as.data.frame(t(X))
+        sum(mapply(function(xi, wwxi) {sum((xi - wwxi)^2)}, X, wwX))^(1 / 2)
+    }
+
+    pc1and2 <- -1*eigen_res$vectors
+    red_dots  <- cbind(dat %*% (-1*eigen_res$vectors[,1] %*% t(-1*eigen_res$vectors[,1])),
+                       rep(1, length(dat[,1])))
+    black_dots <- cbind(dat %*% pc1and2, rep(0, length(dat[,1])))
+    coordinates <- data.frame(rbind(black_dots, red_dots))
+    ggplot(coordinates, aes(color = as.factor(X3))) +
+        geom_point(aes(x = X1, y = X2)) +
+        labs(x = "Dimension 1",
+             y = "Dimension 2",
+             color = "Original = 0, Random Projection = 1", 
+             title = "PCA results")
+```
+
