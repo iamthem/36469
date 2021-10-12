@@ -1,7 +1,7 @@
 ---
 title: "36-469 Homework 03, Fall 2021"
 author: "Leandro Lopez Leon (lslopez)"
-date: "Monday, Oct. 11, 2021" 
+date: "Tuesday, Oct. 12, 2021 (two days late)" 
 output:
   pdf_document:
     toc: no
@@ -44,11 +44,11 @@ output:
     p_values <- lapply(names(snp_data), logistic_regression, dataset = snp_data_original)
     plot_diagnostics <- function(pvalues, correction = T) {
         if (correction) {
-            title_left <- "Histogram of p-values without correction for ancestry"
-            title_right <- "QQ plot of p-values without correction for ancestry"
+            title_left <- "Histogram of p-values without\ncorrection for ancestry"
+            title_right <- "QQ plot of p-values without\ncorrection for ancestry"
         } else {
-            title_left <- "Histogram of p-values with correction for ancestry"
-            title_right <- "QQ plot of p-values with correction for ancestry"
+            title_left <- "Histogram of p-values with\ncorrection for ancestry"
+            title_right <- "QQ plot of p-values with\ncorrection for ancestry"
         }
         p_values_df <- data.frame(unlist(p_values))
         p_left  <-  ggplot(p_values_df, aes(x = unlist.p_values.)) + geom_histogram(bins = 20)  +
@@ -182,10 +182,12 @@ And we report the value of $\lambda^{(1)}$
     red_dots  <- cbind(dat %*% (-1*eigen_res$vectors[,1] %*% t(-1*eigen_res$vectors[,1])), rep(1, length(dat[,1])))
     black_dots <- cbind(dat %*% pc1and2, rep(0, length(dat[,1])))
     coordinates <- data.frame(rbind(black_dots, red_dots))
-    variance <- compute_variance(dat, -1*eigen_res$vectors[,1])
-    reconstruction <- compute_reconstruction(dat, -1*eigen_res$vectors[,1])
-    plot_fig5_and6(coordinates, variance, reconstruction)
+    pc1_variance <- compute_variance(dat, -1*eigen_res$vectors[,1])
+    pc1_reconstruction <- compute_reconstruction(dat, -1*eigen_res$vectors[,1])
+    plot_fig5_and6(coordinates, pc1_variance, pc1_reconstruction)
 ```
+
+We note that the variance across the first principal component is equal to $\lambda^{(1)}$
 
 **C**.  
 
@@ -197,3 +199,38 @@ And we report the value of $\lambda^{(1)}$
     reconstruction <- compute_reconstruction(dat, w_random)
     plot_fig5_and6(coordinates, variance, reconstruction, PCA = F)
 ```
+Qualitatively, the slope of the green dots does not track the overall trend in the data, while the red dots 
+create a high fidelity linear fit (which minimizes least squares?) for the data this subspace. Quantitatively,
+our random vector is not able to recover our original $X$ and accounts for a lower fraction of the variance.  
+than $\lambda^{(1)}$. 
+
+**D**.  
+
+```{r}
+    random_ws <- replicate(1000, generate_random_direction())
+    find_values <- function(w_random) {c(compute_variance(dat, w_random), compute_reconstruction(dat, w_random))}
+    simulated_values <- apply(t(random_ws), 1, find_values)
+    df_result <- data.frame(t(simulated_values))
+
+    # 30 Breaks == 31 bins
+    p_left  <-  ggplot(df_result, aes(x = X2)) + geom_histogram(bins = 31)  +
+                         geom_vline(xintercept = pc1_reconstruction, color = "red", linetype = "dotted") +
+                         labs(title = "Reconstruction Error of\nProjected Data") +
+                         xlab("Value") + ylab("Frequency")
+
+    p_right <-  ggplot(df_result, aes(x = X1)) + geom_histogram(bins = 31)  +
+                         geom_vline(xintercept = pc1_variance, color = "red", linetype = "dotted") +
+                         labs(title = "Variance of Projected Data") +
+                         xlab("Value") + ylab("Frequency")
+
+    grid.arrange(p_left, p_right, ncol = 2)
+```
+
+The dotted red lines suggest that the PCA Reconstruction Error and Variance are optimal (i.e. minimum 
+Reconstruction Error, maximal variance). This means that when projecting each subject into a 
+1-dimensional space, we will lose the least amount of information when we project via $w^{(1)}$, when compared
+with any other $w^\prime \in \mathbb{R}^p$.
+
+## Q3
+Amazing homework. Loving the trivia section in each homework and the challenge problems 
+(will attempt them in the future, currently super busy). Thank you for designing such an amazing course. 
