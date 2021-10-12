@@ -156,27 +156,44 @@ And we report the value of $\lambda^{(1)}$
         sum(mapply(function(xi, wwxi) {sum((xi - wwxi)^2)}, X, wwX))^(1 / 2)
     }
 
-    pc1and2 <- -1*eigen_res$vectors
-    red_dots  <- cbind(dat %*% (-1*eigen_res$vectors[,1] %*% t(-1*eigen_res$vectors[,1])),
-                       rep(1, length(dat[,1])))
+    plot_fig5_and6 <- function(coordinates, variance, reconstruction, PCA = T) {
+        if (PCA) { 
+            title_pca <- paste(paste("PCA: Variance", round(variance, digits = 2), ",\n"),
+                               paste("Reconstruction",  round(reconstruction, digits = 2)))
+            color_fig_dot <- "red"
+            label_fig_dot <- "(PCA) Projection"
+        } else { 
+            title_pca <- paste(paste("Random Projection: Variance", round(variance, digits = 2), ",\n"),
+                               paste("Reconstruction",  round(reconstruction, digits = 2)))
+            color_fig_dot <- "green"
+            label_fig_dot <- "(Random) Projection"
+        }
 
+        ggplot(coordinates, aes(color = as.factor(X3))) +
+            geom_point(aes(x = X1, y = X2)) +
+            labs(x = "Dimension 1",
+                 y = "Dimension 2",
+                 color = paste("Original = 0, \n", paste(label_fig_dot, "= 1")),
+                 title = title_pca) +
+            scale_color_manual(values = c("black", color_fig_dot))
+    }
+
+    pc1and2 <- eigen_res$vectors[,c(2,1)]
+    red_dots  <- cbind(dat %*% (-1*eigen_res$vectors[,1] %*% t(-1*eigen_res$vectors[,1])), rep(1, length(dat[,1])))
     black_dots <- cbind(dat %*% pc1and2, rep(0, length(dat[,1])))
-    
     coordinates <- data.frame(rbind(black_dots, red_dots))
-    random_projection <- compute_variance(dat, -1*eigen_res$vectors[,1])
-
-    title_pca <- paste(paste("Random Projection: Variance", round(variance, digits = 2), ",\n"),
-                       paste("Reconstruction",  round(reconstruction, digits = 2)))
-    ggplot(coordinates, aes(color = as.factor(X3))) +
-        geom_point(aes(x = X1, y = X2)) +
-        labs(x = "Dimension 1",
-             y = "Dimension 2",
-             color = "Original = 0, Random Projection = 1",
-             title = title_pca)
+    variance <- compute_variance(dat, -1*eigen_res$vectors[,1])
+    reconstruction <- compute_reconstruction(dat, -1*eigen_res$vectors[,1])
+    plot_fig5_and6(coordinates, variance, reconstruction)
 ```
 
 **C**.  
 
 ```{r}
-    
+    w_random <- generate_random_direction()
+    green_dots  <- cbind(dat %*% (w_random %*% t(w_random)), rep(1, length(dat[,1])))
+    coordinates <- data.frame(rbind(black_dots, green_dots))
+    variance <- compute_variance(dat, w_random)
+    reconstruction <- compute_reconstruction(dat, w_random)
+    plot_fig5_and6(coordinates, variance, reconstruction, PCA = F)
 ```
