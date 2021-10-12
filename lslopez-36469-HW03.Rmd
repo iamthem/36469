@@ -35,8 +35,8 @@ output:
     library(tidyverse)
     library(gridExtra)
     snp_data_original <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/data/snp_data.csv", row.names = 1)
-    heart_disease <- snp_data[,1]
-    snp_data <- snp_data[,-1]
+    heart_disease <- snp_data_original[,1]
+    snp_data <- snp_data_original[,-1]
     logistic_regression  <- function(covariate, dataset) {
         glm_output <- stats::glm(as.formula(paste("heart_disease ~", covariate)), data = dataset, family = stats::binomial)
         summary(glm_output)$coefficients[2,4]
@@ -159,13 +159,24 @@ And we report the value of $\lambda^{(1)}$
     pc1and2 <- -1*eigen_res$vectors
     red_dots  <- cbind(dat %*% (-1*eigen_res$vectors[,1] %*% t(-1*eigen_res$vectors[,1])),
                        rep(1, length(dat[,1])))
+
     black_dots <- cbind(dat %*% pc1and2, rep(0, length(dat[,1])))
+    
     coordinates <- data.frame(rbind(black_dots, red_dots))
+    random_projection <- compute_variance(dat, -1*eigen_res$vectors[,1])
+
+    title_pca <- paste(paste("Random Projection: Variance", round(variance, digits = 2), ",\n"),
+                       paste("Reconstruction",  round(reconstruction, digits = 2)))
     ggplot(coordinates, aes(color = as.factor(X3))) +
         geom_point(aes(x = X1, y = X2)) +
         labs(x = "Dimension 1",
              y = "Dimension 2",
-             color = "Original = 0, Random Projection = 1", 
-             title = "PCA results")
+             color = "Original = 0, Random Projection = 1",
+             title = title_pca)
 ```
 
+**C**.  
+
+```{r}
+    
+```
