@@ -1,0 +1,124 @@
+---
+title: "36-469 Homework 03, Fall 2021"
+author: "Leandro Lopez Leon (lslopez)"
+date: "Monday, Oct. 11, 2021" 
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+---
+
+```{r wrap-hook,echo=FALSE}
+    library(knitr)
+    library(tidyverse)
+    hook_output = knit_hooks$get('output')
+    knitr::opts_chunk$set(echo = F, warning = F, message = F)
+    knit_hooks$set(output = function(x, options) {
+      # this hook is used only when the linewidth option is not NULL
+      if (!is.null(n <- options$linewidth)) {
+        x = knitr:::split_lines(x)
+        # any lines wider than n should be wrapped
+        if (any(nchar(x) > n)) x = strwrap(x, width = n)
+        x = paste(x, collapse = '\n')
+      }
+      hook_output(x, options)
+    })
+```
+
+## Q1
+**A**.  
+
+```{r}
+    library(tidyverse)
+    library(gridExtra)
+    snp_data_original <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/data/snp_data.csv", row.names = 1)
+    heart_disease <- snp_data[,1]
+    snp_data <- snp_data[,-1]
+    logistic_regression  <- function(covariate, dataset) {
+        glm_output <- stats::glm(as.formula(paste("heart_disease ~", covariate)), data = dataset, family = stats::binomial)
+        summary(glm_output)$coefficients[2,4]
+    }
+    p_values <- lapply(names(snp_data), logistic_regression, dataset = snp_data_original)
+    plot_diagnostics <- function(pvalues, correction = T) {
+        if (correction) {
+            title_left <- "Histogram of p-values without correction for ancestry"
+            title_right <- "QQ plot of p-values without correction for ancestry"
+        } else {
+            title_left <- "Histogram of p-values with correction for ancestry"
+            title_right <- "QQ plot of p-values with correction for ancestry"
+        }
+        p_values_df <- data.frame(unlist(p_values))
+        p_left  <-  ggplot(p_values_df, aes(x = unlist.p_values.)) + geom_histogram(bins = 20)  +
+                            geom_vline(xintercept = 0.05, color = "red", linetype = "dotted") +
+                            labs(title = title_left) +
+                            xlab("P-value bin") + ylab("Frequency")
+
+        n.data <- length(p_values)
+        scaled_p_values <- sort(-1 * log10(unlist(p_values)))
+        theoretical <- sort(-1 * log10(runif(n.data)))
+        scaled_p_values_df <- data.frame(cbind(scaled_p_values, theoretical))
+        p_right <- ggplot(scaled_p_values_df) + geom_point(aes(x = theoretical, y = scaled_p_values)) +
+                    geom_abline(intercept = 0, slope = 1, color = "red") + 
+                    labs(title = title_right) +
+                    xlab("Expected distribution (-Log10 of p-value)") + 
+                    ylab("Observed distribution (-Log10 of p-value)")
+        list(p_left, p_right)
+    }
+    L <- plot_diagnostics(p_values)
+    grid.arrange(L[[1]], L[[2]], ncol = 2)
+```
+
+Observe that the distribution of p-values for our individual regressions suggests that the overwhelming 
+majority of the SNP's are significant predictors to our target (`heart_disease`). However, this diverges from what we expect, 
+namely that most SNP's are unrelated to `heart_disease`, which is expressed mathematically as a uniform prior over the space of coefficients' 
+p-values (see QQ-plot on the right). This discrepancy puts into question this naive approach. We must somehow account for the confounders in our
+data.
+
+
+
+
+**B**.  
+
+```{r}
+    pca_res <- stats::prcomp(snp_data, center = T, scale. = T)
+    normalized_evs <- pca_res$sdev^2 / sum(pca_res$sdev^2)
+    evs_df <- data.frame(cbind(100 * normalized_evs, seq(from = 1, to = length(normalized_evs), by = 1)))
+    ggplot(evs_df, aes(x = X2, y = X1)) + geom_point() + labs(title = "Scree plot") +
+        xlab("Components") + ylab("% of variance accounted for")
+```
+
+
+
+
+**C**.  
+
+```{r}
+    pc1and2 <- pca_res$rotation[,c(1,2)]
+    coordinates <- data.frame(cbind(as.matrix(snp_data) %*% pc1and2, heart_disease))
+    ggplot(coordinates, aes(x = PC1, y = PC2, color = as.factor(heart_disease))) +
+        geom_point() +
+        labs(x = "Principal Component 1",
+             y = "Principal Component 2",
+             color = "Has CHD?", 
+             title = "PCA results")
+```
+
+
+**D**.  
+
+```{r}
+    logistic_regression_withPC  <- function(covariate, dataset) {
+        glm_output <- stats::glm(as.formula(paste("heart_disease ~ PC1 + PC2 +", covariate)), data = dataset, family = stats::binomial)
+        summary(glm_output)$coefficients[4,4]
+    }
+    snp_data_PC <- snp_data_original %>% mutate(PC1 = coordinates$PC1, PC2 = coordinates$PC2)
+    p_values <- lapply(names(snp_data), logistic_regression_withPC, dataset = snp_data_PC)
+    L <- plot_diagnostics(p_values, correction = F)
+    grid.arrange(L[[1]], L[[2]], ncol = 2)
+```
+We note that the empirical distribution of the p-values looks significantly more balanced than what we saw in Q1 and that 
+it tracks the expected distribution (uniform over the $[0,1]$ interval) much more closely as evidence in the QQ plot. Including ancestry in our model (via $PC1$ and $PC2$) 
+has weakened the statistical significance between each individual SNP and our response (CHD). In effect, we have taken into account this confounder in our analysis. 
