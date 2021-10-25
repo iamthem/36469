@@ -1,0 +1,175 @@
+---
+title: "36-469 Homework 04, Fall 2021"
+author: "Leandro Lopez Leon (lslopez)"
+date: "Monday, Oct. 25, 2021 (one day late)" 
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+---
+
+```{r wrap-hook,echo=FALSE}
+    library(knitr)
+    library(tidyverse)
+    hook_output = knit_hooks$get('output')
+    knitr::opts_chunk$set(echo = F, warning = F, message = F)
+    knit_hooks$set(output = function(x, options) {
+      # this hook is used only when the linewidth option is not NULL
+      if (!is.null(n <- options$linewidth)) {
+        x = knitr:::split_lines(x)
+        # any lines wider than n should be wrapped
+        if (any(nchar(x) > n)) x = strwrap(x, width = n)
+        x = paste(x, collapse = '\n')
+      }
+      hook_output(x, options)
+    })
+```
+
+## Q1
+```{r}
+    library(tidyverse)
+    library(gridExtra)
+    snp_data <- as.matrix(read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/hw4/synthetic_famuss.csv"))
+    heart_disease <- snp_data[,1]; 
+    snp_data <- snp_data[,-1]
+    set.seed(10)
+    n <- length(heart_disease)
+    idx <- sample(1:n, round(.2*n))
+    train_dat <- snp_data[-idx,]; train_label <- heart_disease[-idx]
+    test_dat <- snp_data[idx,]; test_label <- heart_disease[idx]
+```
+**A**.  
+```{r}
+    pca_res <- stats::prcomp(snp_data, center = T, scale. = T)
+    pc1and2 <- pca_res$rotation[,c(1,2)]
+    coordinates_train <- data.frame(cbind(train_dat %*% pc1and2, heart_disease))
+    coordinates_test <- data.frame(cbind(test_dat %*% pc1and2, heart_disease))
+    plot_PCs <- function(coordinates, plot_title, fact) {
+        g  <- ggplot(coordinates, aes(x = PC1, y = PC2, color = as.factor(fact))) +
+                 geom_point() +
+                 labs(x = "Principal Component 1",
+                 y = "Principal Component 2", color = "Has CHD?", title = plot_title)
+        return(g)
+    }
+    g_train <- plot_PCs(coordinates_train, "Training Data: Observed", coordinates_train$heart_disease)
+    g_test <- plot_PCs(coordinates_test, "Testing Data: Observed", coordinates_test$heart_disease)
+    grid.arrange(g_train, g_test, ncol = 2)
+```
+
+We note a correspondence between our training and test data sets along the first two principal components. Although 
+the training data is more numerous, the plot sugggest both samples are coming from a similar data generating process. 
+
+**B**.  
+
+```{r}
+    library(glmnet)
+    source("https://raw.githubusercontent.com/xuranw/469_public/master/hw2/hw2_functions.R")
+    cvglmnet_res <- cv.glmnet(x = as.matrix(train_dat), y = as.matrix(train_label),
+                             family = "binomial", intercept = T, alpha = 1)
+    coef_vec1 <- stats::coef(cvglmnet_res, s = "lambda.1se")
+    train_df <- data.frame(cbind(train_dat, train_label))
+    test_df <- data.frame(cbind(test_dat, test_label))
+    pred_vec_train <- output_predictions(cvglmnet_res, train_df, which(colnames(train_df) == "train_label"))
+    pred_vec_test <- output_predictions(cvglmnet_res, test_df, which(colnames(test_df) == "test_label"))
+    pred_error_train <- sum(pred_vec_train != train_label) / n
+    pred_error_test <- sum(pred_vec_test != test_label) / n
+    coordinates_train <- data.frame(cbind(train_dat %*% pc1and2, pred_vec_train))
+    coordinates_test <- data.frame(cbind(test_dat %*% pc1and2, pred_vec_test))
+    g_train <- plot_PCs(coordinates_train,
+                        paste("Training Data: Logistic reg.\nTraining Error: ", round(pred_error_train, 2)),
+                        coordinates_train$pred_vec_train)
+    g_test <- plot_PCs(coordinates_test,
+                       paste("Testing Data: Logistic reg.\nTesting Error: ", round(pred_error_test, 2)),
+                       coordinates_test$pred_vec_test)
+    grid.arrange(g_train, g_test, ncol = 2)
+```
+
+**C**.  
+
+```{r, results = 'hide'}
+    library(xgboost)
+    xgb_cv <-  xgboost::xgb.cv(data = train_dat, label = train_label,
+                    nrounds = 20, nfold = 5, metrics = list("error"),
+                    max_depth = 5, objective = "binary:logistic",
+                    early_stopping_rounds = 5, verbose = F)
+```
+
+The optimal number of trees is given below 
+
+```{r}
+        xgb_cv$best_iteration
+```
+
+```{r, results = 'hide'}
+    xgb_opt <-  xgboost::xgboost(data = train_dat, label = train_label,
+                    nrounds = xgb_cv$best_iteration, nfold = 5, metrics = list("error"),
+                    max_depth = 5, objective = "binary:logistic",
+                    early_stopping_rounds = 5, verbose = F)
+    
+    train_pred <- as.numeric(stats::predict(xgb_opt, newdata = train_dat) > 0.5)
+    test_pred <- as.numeric(stats::predict(xgb_opt, newdata = test_dat) > 0.5)
+
+    pred_error_train <- sum(train_pred != train_label) / n
+    pred_error_test <- sum(test_pred != test_label) / n
+
+    coordinates_train <- data.frame(cbind(train_dat %*% pc1and2, train_pred))
+    coordinates_test <- data.frame(cbind(test_dat %*% pc1and2, test_pred))
+```
+
+```{r}
+    g_train <- plot_PCs(coordinates_train,
+                        paste("Training Data: XGBoost \nTraining Error: ", round(pred_error_train, 2)),
+                        coordinates_train$train_pred)
+    g_test <- plot_PCs(coordinates_test,
+                       paste("Testing Data: XGBoost \nTesting Error: ", round(pred_error_test, 2)),
+                       coordinates_test$test_pred)
+    grid.arrange(g_train, g_test, ncol = 2)
+```
+
+**D**.  
+
+```{r}
+    fit_xgboost <- function(max_depth)  {
+        xgb_out <- xgboost::xgboost(data = train_dat, label = train_label,
+                        nrounds = xgb_cv$best_iteration, nfold = 5, metrics = list("error"),
+                        max_depth = max_depth, objective = "binary:logistic",
+                        early_stopping_rounds = 5, verbose = F)
+    
+        train_pred <- as.numeric(stats::predict(xgb_out, newdata = train_dat) > 0.5)
+        test_pred <- as.numeric(stats::predict(xgb_out, newdata = test_dat) > 0.5)
+
+        pred_error_train <- sum(train_pred != train_label) / n
+        pred_error_test <- sum(test_pred != test_label) / n
+        c(pred_error_train, pred_error_test, max_depth)
+    }
+    depths <- 1:10
+    output <- sapply(depths, fit_xgboost, simplify = T)
+```
+
+```{r}
+    x_axis <- as.vector(sapply(output[3,], function(x){c(x,x)}))
+    output_df <- data.frame(cbind(as.vector(output[c(1,2),]),
+                                  rep(c("Training Misclassification","Testing Misclassification"), 10),
+                                  as.numeric(x_axis)))
+    names(output_df) <- c("misclass", "label", "depth")
+
+    ggplot(data = output_df, aes(x = factor(depth, level = depths), y = misclass, group = label)) +
+        geom_line(aes(linetype = label, color = label)) +
+        labs(x = "Max Depth",
+            y = "Misclassification",
+            title = "Training vs. Testing Comparison")
+```
+
+**E**.  
+```{r}
+    xgb_out <- xgboost::xgboost(data = train_dat, label = train_label,
+                    nrounds = xgb_cv$best_iteration, nfold = 5, metrics = list("error"),
+                    max_depth = 3, objective = "binary:logistic",
+                    early_stopping_rounds = 5, verbose = F)
+    importance_mat <- xgboost::xgb.importance(model = xgb_out)
+    xgboost::xgb.plot.importance(importance_mat)
+```
+
