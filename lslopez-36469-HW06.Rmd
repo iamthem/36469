@@ -1,0 +1,72 @@
+---
+title: "36-469 Homework 06, Fall 2021"
+author: "Leandro Lopez Leon (lslopez)"
+date: "Monday, Nov. 21, 2021 (Finally on Time)" 
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+---
+
+```{r wrap-hook,echo=FALSE}
+    library(knitr)
+    library(tidyverse)
+    hook_output = knit_hooks$get('output')
+    knitr::opts_chunk$set(echo = F, warning = F, message = F)
+    knit_hooks$set(output = function(x, options) {
+      # this hook is used only when the linewidth option is not NULL
+      if (!is.null(n <- options$linewidth)) {
+        x = knitr:::split_lines(x)
+        # any lines wider than n should be wrapped
+        if (any(nchar(x) > n)) x = strwrap(x, width = n)
+        x = paste(x, collapse = '\n')
+      }
+      hook_output(x, options)
+    })
+```
+
+## Q1
+```{r}
+    library(tidyverse)
+    library(gridExtra)
+    library(PMA)
+```
+
+```{r}
+    tmp <- read.csv("../469_public/hw6/darmanis_preprocessed.csv")
+    expr_mat <- as.matrix(tmp[,-1])
+    cell_types <- as.factor(tmp[,1])
+    source("../469_public/hw6/hw6_functions.R")
+    dim(expr_mat); length(cell_types)
+    table(cell_types)
+    expr_mat[1:5, 1:5]
+```
+**A**.  
+
+```{r}
+    expr_numeric <- expr_mat[, colnames(expr_mat) != 'cell_type']
+    m <- apply(expr_numeric, c(1,2), function(cell) as.numeric(trimws(cell)))
+    m_df <- as_tibble(m)
+```
+
+```{r}
+    library_norm <- function(cell) {
+        cell_total <- sum(cell)
+        norm_ <- function(y_i) {
+                    tryCatch(
+                        1e4 * (y_i / cell_total),
+                        error = function(e) {})
+                }
+        return(as.tibble(purrr::map(cell, norm_)))
+    }
+```
+
+
+```{r}
+    # TODO figure out which map function will mutate all rows in `m_df`
+    # to our desired form
+    norm_df <- m_df[1,] %>% pmap
+```

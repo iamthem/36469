@@ -1,0 +1,211 @@
+---
+title: "36-469 Homework 04, Fall 2021"
+author: "Leandro Lopez Leon (lslopez)"
+date: "Monday, Oct. 25, 2021 (one day late)" 
+output:
+  pdf_document:
+    toc: no
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab
+---
+
+```{r wrap-hook,echo=FALSE}
+    library(knitr)
+    library(tidyverse)
+    hook_output = knit_hooks$get('output')
+    knitr::opts_chunk$set(echo = F, warning = F, message = F)
+    knit_hooks$set(output = function(x, options) {
+      # this hook is used only when the linewidth option is not NULL
+      if (!is.null(n <- options$linewidth)) {
+        x = knitr:::split_lines(x)
+        # any lines wider than n should be wrapped
+        if (any(nchar(x) > n)) x = strwrap(x, width = n)
+        x = paste(x, collapse = '\n')
+      }
+      hook_output(x, options)
+    })
+```
+
+## Q1
+```{r}
+    library(tidyverse)
+    library(gridExtra)
+    library(hexbin)
+    library(DESeq2)
+    library(vsn)
+    library(SummarizedExperiment)
+    library(genefilter)
+    library(SummarizedExperiment); library(genefilter)
+    load(url("https://github.com/xuranw/469_public/raw/main/hw5/airway.RData"))
+```
+
+**A**.  
+
+```{r}
+    class(dds)
+    SummarizedExperiment::colData(dds)
+    count_dds  <- SummarizedExperiment::assay(dds)
+    class(count_dds)
+    dim(count_dds)
+    colnames(count_dds)
+    head(rownames(count_dds))
+    rownames(count_dds)[245]
+```
+**1** The $(i,j)$th element of `count_dds` represents the number of 
+sequence fragments which have been assigned to gene $i$ in experiment $j$ 
+
+**2** In the output of `colData(dds)`, each subject seems to have 
+their own row. For each subject we see whether they are part of 
+the control or the treatment group, donor ID, cell ID 
+
+**3** Couldn't find it `:(`
+
+**B**.  
+
+```{r}
+    dds <- DESeq2::DESeq(dds)
+    res <- DESeq2::results(dds)
+    res
+```
+`DESeq` first estimates the normalization constant $s_j$ for all samples $j$ . Then
+it estimates the count dispersion $\alpha_i$ for each gene. Then it 
+finds suitable coefficients $B_i$ for a GLM of the Negative Binomial family with $log$ link function (technically estimating a posterior). Finally it tests 
+the significance of these coefficients using a Walt Test. This last step is the 
+most important since steps 1-3 may not have yielded parameters with 
+any explanatory power. 
+
+**C**.  
+
+```{r}
+    DESeq2::plotMA(res, ylim = c(-5, 5), main = "MA plot")
+```
+Each point represents a gene; blue ones represent significant ones and grey 
+nonsignificant ones (Significance computed depends on coefficient value). $y$ axis
+represents how much the gene's expression seems to have changed due to treatment,
+while the $x$ axis represents the average normalized counts seen in training 
+
+**D**.  
+
+```{r}
+    vsd <- DESeq2::vst(dds, blind = FALSE)
+    count_vsd <- SummarizedExperiment::assay(vsd)
+    vsn::meanSdPlot(count_dds)
+    vsn::meanSdPlot(count_vsd)
+```
+
+Quantiles of `count_dds`
+```{r}
+    quantile(count_dds)
+```
+Quantiles of `count_vsd`
+```{r}
+    quantile(count_vsd)
+```
+**1** Note that the first distribution is heavy tailed, which means a central assumption 
+of linear models (homoscedasticity) is suspect in the untransformed data. 
+
+**2** Each hexagon in the plot displays a gene, which is color coded by its 
+observed count. The $y$ axis is displaying the standard deviation of the count 
+data while the $x$ axis is displaying the mean. We see a clear functional 
+relationship in the first plot, whereas the second plot looks more uniform. 
+
+**3** The right plot looks more uniform because our vst integrates over a scaled
+transformation of the data where the scale is determined by the variance-mean
+dependence $w(q)$
+
+**E**
+
+```{r}
+    topVarGenes <- head(order(genefilter::rowVars(count_vsd),
+                    decreasing = TRUE), 40)
+    dat <- count_vsd[topVarGenes,]
+    dat <- dat - rowMeans(dat)
+    anno <- as.data.frame(SummarizedExperiment::colData(vsd)[,c("cell","dex")])
+    pheatmap::pheatmap(dat, annotation_col = anno)
+```
+
+**1** We sort genes by count variance across the different samples and we 
+pick the top 40 by this measure 
+
+**2** The rows correspond to genes, while the columns correspond to subjects. 
+Each subject is either treated of untreated and there are also different types 
+of cells for each subject. The clusters can be read from root to leaf as follows:
+For some level of the tree fix a node $n$, the subtrees rooted at $n$ are 
+closer to each other than those subtrees which are rooted at any of $n$'s siblings 
+(those nodes which are at the same level as $n$ and share the same parent)
+
+**3**
+We observe a difference in variance between untreated and treated subjects with 
+the same cell attribute, which might suggest some effect related to the drug in
+question. The column hierarchical clustering seems to capture this trend since 
+it perfectly splits treated from non-treated subjects. The row tree has less clear
+interpretation, but seems to separate genes with extreme discrepancies in treated
+vs untreated, when compared with genes with more uniform variance counts 
+
+## Q2
+
+**A**
+```{r}
+   dat <- read.csv("https://raw.githubusercontent.com/xuranw/469_public/master/hw5/synthetic.csv")
+    plot(dat$x, dat$y, pch = 16, xlab = "x", ylab = "y")
+```
+```{r}
+    fit_lm <- stats::lm(y ~., data = dat)
+    pred_lm <- stats::predict(fit_lm, newdata = dat, type = "response")
+    est_sd <- summary(fit_lm)$sigma
+    plot(dat$x, dat$y, pch = 16, ylim = range(c(pred_lm, dat$y)),
+    main = "Gaussian fit", xlab = "x", ylab = "y")
+    points(dat$x, pred_lm, col = "red", pch = 16, xlab = "x", ylab = "y")
+    for(i in 1:length(dat$x)){
+        lines(rep(dat$x[i], 2), c(pred_lm[i]-2*est_sd, pred_lm[i] + 2 * est_sd),
+                                  col ="red")
+    }
+```
+```{r}
+    res <- as.vector(residuals(fit_lm))
+    data.frame(ft = pred_lm, res = res) %>%
+        ggplot(data = ., aes(x = ft, y = res)) +
+        geom_point() + geom_smooth() + labs(ylab = "Fit", xlab = "residuals")
+```
+We display the residuals vs fit plot above, suggesting a functional relationship 
+between the residuals and the fitted valus. This suggests that our linear model
+is not capturing the complexity of our training set (if it were the residuals 
+would look like white noise)
+
+**B**
+```{r}
+    poisson_fit  <- glm(y ~ ., family = poisson, dat)
+    pred_lm <- predict(poisson_fit, newdata = dat, type = "response")
+    est_sd <- sqrt(mean(pred_lm))
+    plot(dat$x, dat$y, pch = 16, ylim = range(c(pred_lm, dat$y)),
+    main = "Poisson fit", xlab = "x", ylab = "y")
+    points(dat$x, pred_lm, col = "red", pch = 16, xlab = "x", ylab = "y")
+    for(i in 1:length(dat$x)){
+        lines(rep(dat$x[i], 2), c(pred_lm[i]-2*est_sd, pred_lm[i] + 2 * est_sd),
+                                  col ="red")
+    }
+```
+```{r}
+    ggplot(data = data.frame(fit = pred_lm, variance_approx = (dat$y - pred_lm)^2),
+           aes(x = fit, y = variance_approx)) + geom_point() + geom_smooth()
+```
+
+Note that in the first plot, our fitted points seem to track the convexity 
+of the data-generating process. However we see in the above plot of variance vs 
+mean, that the relationship between the $x$ and $y$ is not linear as we expected from our model assumptions.
+
+**C**
+```{r}
+    library(MASS)
+    nb_fit <- glm.nb(y ~ ., data = dat)
+    pred_lm <- predict(nb_fit, newdata = dat, type = "response")
+    plot(dat$x, dat$y, pch = 16, ylim = range(c(pred_lm, dat$y)),
+    main = "Poisson fit", xlab = "x", ylab = "y")
+    points(dat$x, pred_lm, col = "red", pch = 16, xlab = "x", ylab = "y")
+    for(i in 1:length(dat$x)){
+        lines(rep(dat$x[i], 2), c(pred_lm[i]-0.25, pred_lm[i] + 0.25),
+                                  col ="red")
+    }
+```
