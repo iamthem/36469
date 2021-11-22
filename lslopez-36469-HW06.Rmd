@@ -1,7 +1,7 @@
 ---
 title: "36-469 Homework 06, Fall 2021"
 author: "Leandro Lopez Leon (lslopez)"
-date: "Monday, Nov. 21, 2021 (Finally on Time)" 
+date: "Monday, Nov. 22, 2021 (1 Day Late)" 
 output:
   pdf_document:
     toc: no
@@ -27,6 +27,8 @@ output:
       hook_output(x, options)
     })
 ```
+
+## Q0 (TODO)
 
 ## Q1
 ```{r}
@@ -57,16 +59,154 @@ output:
         cell_total <- sum(cell)
         norm_ <- function(y_i) {
                     tryCatch(
-                        1e4 * (y_i / cell_total),
+                        log2((1e4 * (y_i / cell_total)) + 1),
                         error = function(e) {})
                 }
-        return(as.tibble(purrr::map(cell, norm_)))
+        res <- as_tibble(purrr::map(cell, norm_))
+        names(res) <- names(cell)
+        return(res)
     }
-```
 
+    norm_l <- vector("list", length(nrow(m_df)))
+    for (i in 1:nrow(m_df)) {
+        norm_l[[i]] <- library_norm(m_df[i, ])
+    }
+    norm_df <- dplyr::bind_rows(norm_l) %>% map_df(., scale) %>% mutate(cell_types = cell_types) %>%
+               relocate(cell_types)
+    norm_df[1:5, 1:6]
+```
+\pagebreak
+
+**B**.  
 
 ```{r}
-    # TODO figure out which map function will mutate all rows in `m_df`
-    # to our desired form
-    norm_df <- m_df[1,] %>% pmap
+    norm_df_numeric <- norm_df %>% select(-cell_types)
+    pca_res <- stats::prcomp(norm_df_numeric, center = T, scale. = T)
+    tmp <- as.matrix(norm_df_numeric) %*% pca_res$rotation[, 1:4]
+    expr_pca <- apply(tmp, 2, scale)
+    scree_df <- tibble(x = 1:length(pca_res$sdev), y = pca_res$sdev)
+    p1 <- ggplot(scree_df, aes(x = x, y = y)) + geom_point() + labs(title = "Scree plot of full data") +
+        xlab("Index of Principal Components") + ylab("Square root of eigenvalues")
+    coordinates <- tibble(PC1 = expr_pca[,1], PC2 = expr_pca[,2], cell_type = expr_mat[,1])
+    p2 <- ggplot(coordinates, aes(x = PC1, y = PC2, color = cell_type)) +
+        geom_point() +
+        labs(x = "Principal Component 1",
+             y = "Principal Component 2",
+             title = "Visualizing data\n(True Clusters, full data)")
+    grid.arrange(p1, p2, nrow = 2)
 ```
+
+We see a dramatic drop in the square root of the eigenvalues after the fourth index, 
+suggesting that we can capture the overwhelming majority of the variance with the 
+first four principal components. Additionally, our first two principal 
+components (somewhat) allow us to draw decision boundaries between the different cell types.
+
+
+**C**.  
+
+Confusion Matrix 
+
+```{r}
+    kmeans_res <- stats::kmeans(expr_numeric, centers = 4)
+    cell_type <- as.factor(expr_mat[,1])
+    table(kmeans_res$cluster, cell_type)
+```
+
+Misclustering rate
+
+```{r}
+    compute_misclustering_rate(kmeans_res$cluster, cell_type)
+```
+
+Note that naive K-means misclassifies many `astrocytes` and `fetal_quiescent` cell types 
+by placing them into the `neurons` category. 
+
+**D**.  
+
+Confusion Matrix 
+
+```{r}
+    kmeans_res_pca <- stats::kmeans(expr_pca, centers = 4)
+    table(kmeans_res_pca$cluster, cell_type)
+```
+
+Misclustering rate
+
+```{r}
+    compute_misclustering_rate(kmeans_res_pca$cluster, cell_type)
+```
+
+```{r}
+    coordinates <- tibble(PC1 = expr_pca[, 1], PC2 = expr_pca[, 2],
+                          cell_type = kmeans_res_pca$cluster)
+    ggplot(coordinates, aes(x = PC1, y = PC2, color = cell_type)) +
+        geom_point() +
+        guides(color = "none") +
+        labs(x = "Principal Component 1",
+             y = "Principal Component 2",
+             title = "Visualizing data\n(Estimated Clusters, full data)")
+```
+
+We note that the estimated clusters gets confused around the cloud near $(0,0)$
+
+**E**.  
+
+```{r, include = F}
+    expr_numeric <- as.matrix(norm_df_numeric)
+    spca_cv_res <- PMA::SPC.cv(expr_numeric, sumabsvs =
+                               seq(1.2, sqrt(ncol(expr_numeric)) / 2,
+                                   length.out = 10))
+
+    spca_res <- PMA::SPC(expr_numeric, sumabsv = spca_cv_res$bestsumabsv1se, K = 4)
+    gene_idx <- which(apply(spca_res$v, 1, function(r) !all(r == 0)))
+    expr_mat_screened <- as_tibble(expr_numeric[, gene_idx]) %>% mutate(cell_types = cell_types) %>%
+                         relocate(cell_types)
+```
+
+```{r}
+expr_mat_screened[1:6, ]
+```
+\pagebreak
+
+**F**.  
+
+Confusion Matrix 
+
+```{r}
+    expr_mat_screened_numeric <-  expr_mat_screened %>% select(-cell_types)
+    pca_res_s <- stats::prcomp(expr_mat_screened_numeric, center = T, scale. = T)
+    tmp <- as.matrix(expr_mat_screened_numeric) %*% pca_res_s$rotation[, 1:4]
+    expr_spca <- apply(tmp, 2, scale)
+    kmeans_res_spca <- stats::kmeans(expr_spca, centers = 4)
+    table(kmeans_res_spca$cluster, cell_type)
+```
+
+Misclassification rate
+
+```{r}
+    compute_misclustering_rate(kmeans_res_spca$cluster, cell_type)
+```
+
+```{r}
+    first_df <- tibble(PC1 = expr_spca[,1], PC2 = expr_spca[,2], cell_type = expr_mat[,1])
+
+    p1 <- ggplot(first_df, aes(x = PC1, y = PC2, color = cell_type)) +
+        geom_point() +
+        labs(x = "Principal Component 1",
+             y = "Principal Component 2",
+             title = "Visualizing data\n(True Clusters, full data)")
+
+    second_df <- tibble(PC1 = expr_spca[,1], PC2 = expr_spca[,2], cell_type = kmeans_res_spca$cluster)
+    p2 <- ggplot(second_df, aes(x = PC1, y = PC2, color = cell_type)) +
+        geom_point() +
+        guides(color = "none") +
+        labs(x = "Principal Component 1",
+             y = "Principal Component 2",
+             title = "Visualizing data\n(Est. Clusters, full data)")
+    grid.arrange(p1, p2, nrow = 2)
+```
+
+With the untransformed data, PCA's factors can give disproportionate importance to noise in the data. 
+By filtering out unimportant genes before performing PCA, we guarantee that the computed factor loading are 
+more meaningful, resulting in a better clustering performance since the euclidean distance is not swayed by 
+irrelevant features.
