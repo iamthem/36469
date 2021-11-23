@@ -29,6 +29,8 @@ output:
 ```
 
 ## Q0 (TODO)
+I'm interested in using spectar partioning to cluster SNN graphs. This type of analysis has been done in the following paper: C. Gkantsidis, M. Mihail, and E. Zegura, _Spectral analysis of Internet
+topologies_ in Proceedings of the 22nd Annual INFOCOM Conference, 2003, pp. 364–374. I will be working alone
 
 ## Q1
 ```{r}
